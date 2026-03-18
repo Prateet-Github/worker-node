@@ -1,11 +1,12 @@
 import { Worker } from "bullmq";
 import { redisConnection } from "../config/redis";
-import { encodeVideo } from "../jobs/encodeVideo";
 
 export const videoWorker = new Worker(
-  "video-encoding",
+  "video-processing",
   async (job) => {
-    await encodeVideo(job.data);
+    const { videoId, s3Key } = job.data;
+
+    console.log("Processing video:", videoId);
   },
   {
     connection: redisConnection,
