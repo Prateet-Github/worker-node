@@ -7,10 +7,18 @@ export const videoWorker = new Worker(
     const { videoId, s3Key } = job.data;
 
     console.log("Processing video:", videoId);
+
+    // 1. Download from S3
+    // 2. FFmpeg: Generate Thumbnail
+    // 3. FFmpeg: Transcode to HLS (.m3u8 + .ts)
+    // 4. Upload results back to S3
+    // 5. Update MongoDB status to 'COMPLETED'
+
+    return { status: "success", videoId };
   },
   {
     connection: redisConnection,
-    concurrency: 2,
+    concurrency: 1,
   }
 );
 
