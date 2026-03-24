@@ -18,6 +18,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1015.0",
     "bullmq": "^5.70.4",
     "dotenv": "^17.3.1",
     "ioredis": "^5.10.0"
