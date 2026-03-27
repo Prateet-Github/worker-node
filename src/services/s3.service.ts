@@ -12,6 +12,7 @@ export const downloadFromS3 = async (key: string, outputPath: string) => {
 
   try {
     console.log(`Downloading: ${key}`);
+    console.log(`Saving to: ${outputPath}`);
 
     const response = await s3.send(command);
 
@@ -19,7 +20,6 @@ export const downloadFromS3 = async (key: string, outputPath: string) => {
       throw new Error("Empty S3 response body");
     }
 
-    // ensuring the directory exists
     const dir = path.dirname(outputPath);
     fs.mkdirSync(dir, { recursive: true });
 
@@ -35,6 +35,11 @@ export const downloadFromS3 = async (key: string, outputPath: string) => {
     console.log(`Downloaded: ${key} → ${outputPath}`);
   } catch (error) {
     console.error("S3 Download Error:", error);
+
+    if (fs.existsSync(outputPath)) {
+      fs.unlinkSync(outputPath);
+    }
+
     throw error;
   }
 };

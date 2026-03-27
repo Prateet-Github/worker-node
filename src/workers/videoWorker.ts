@@ -1,5 +1,7 @@
 import { Worker } from "bullmq";
 import { redisConnection } from "../config/redis";
+import { downloadFromS3 } from "../services/s3.service";
+import path from "path";
 
 export const videoWorker = new Worker(
   "video-processing",
@@ -9,6 +11,10 @@ export const videoWorker = new Worker(
     console.log("Processing video:", videoId);
 
     // 1. Download from S3
+    const localFilePath = path.join("/tmp", `${videoId}.mp4`);
+    await downloadFromS3(s3Key, localFilePath);
+    console.log("Downloaded video to:", localFilePath);
+
     // 2. FFmpeg: Generate Thumbnail
     // 3. FFmpeg: Transcode to HLS (.m3u8 + .ts)
     // 4. Upload results back to S3
