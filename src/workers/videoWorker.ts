@@ -1,6 +1,7 @@
 import { Worker } from "bullmq";
 import { redisConnection } from "../config/redis";
 import { downloadFromS3 } from "../services/s3.service";
+import { generateThumbnail } from "../services/ffmpeg.service";
 import path from "path";
 
 export const videoWorker = new Worker(
@@ -11,11 +12,20 @@ export const videoWorker = new Worker(
     console.log("Processing video:", videoId);
 
     // 1. Download from S3
-    const localFilePath = path.join("/tmp", `${videoId}.mp4`);
-    await downloadFromS3(s3Key, localFilePath);
-    console.log("Downloaded video to:", localFilePath);
+    const inputPath = path.join("/tmp", `${videoId}.mp4`);
+    await downloadFromS3(s3Key, inputPath);
+    console.log("Downloaded video to:", inputPath);
 
     // 2. FFmpeg: Generate Thumbnail
+    const thumbnailDir = path.join("/tmp", `${videoId}-thumb`);
+
+    const thumbnailPath = await generateThumbnail(
+      inputPath,
+      thumbnailDir
+    );
+
+    console.log("Thumbnail generated at:", thumbnailPath);
+  
     // 3. FFmpeg: Transcode to HLS (.m3u8 + .ts)
     // 4. Upload results back to S3
     // 5. Update MongoDB status to 'COMPLETED'
