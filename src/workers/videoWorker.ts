@@ -2,6 +2,7 @@ import { Worker } from "bullmq";
 import { redisConnection } from "../config/redis";
 import { downloadFromS3 } from "../services/s3.service";
 import { generateThumbnail } from "../services/ffmpeg.service";
+import { convertToHLS } from "../services/ffmpeg.service";
 import path from "path";
 
 export const videoWorker = new Worker(
@@ -25,8 +26,15 @@ export const videoWorker = new Worker(
     );
 
     console.log("Thumbnail generated at:", thumbnailPath);
-  
+
     // 3. FFmpeg: Transcode to HLS (.m3u8 + .ts)
+    const inputVideoPath = path.join("/tmp", `${videoId}.mp4`);
+    const hlsOutputDir = path.join("/tmp", `${videoId}-hls`);
+
+    const hlsPath = await convertToHLS(inputVideoPath, hlsOutputDir);
+    
+    console.log("HLS generated at:", hlsPath);
+
     // 4. Upload results back to S3
     // 5. Update MongoDB status to 'COMPLETED'
 
