@@ -1,8 +1,9 @@
 import { Worker } from "bullmq";
 import { redisConnection } from "../config/redis";
 import { downloadFromS3 } from "../services/s3.service";
-import { generateThumbnail } from "../services/ffmpeg.service";
-import { convertToHLS } from "../services/ffmpeg.service";
+import { generateThumbnail, convertToHLS } from "../services/ffmpeg.service";
+import { uploadToS3 } from "../services/upload.service";
+import fs from "fs";
 import path from "path";
 
 export const videoWorker = new Worker(
@@ -10,35 +11,67 @@ export const videoWorker = new Worker(
   async (job) => {
     const { videoId, s3Key } = job.data;
 
-    console.log("Processing video:", videoId);
+    const workDir = path.join("/tmp", videoId);
+    const inputPath = path.join(workDir, "raw.mp4");
+    const hlsOutputDir = path.join(workDir, "hls");
 
-    // 1. Download from S3
-    const inputPath = path.join("/tmp", `${videoId}.mp4`);
-    await downloadFromS3(s3Key, inputPath);
-    console.log("Downloaded video to:", inputPath);
+    try {
+      console.log(`Starting job for video: ${videoId}`);
 
-    // 2. FFmpeg: Generate Thumbnail
-    const thumbnailDir = path.join("/tmp", `${videoId}-thumb`);
+      // 1. Setup workspace
+      await fs.promises.mkdir(hlsOutputDir, { recursive: true });
 
-    const thumbnailPath = await generateThumbnail(
-      inputPath,
-      thumbnailDir
-    );
+      // 2. Download from S3
+      await downloadFromS3(s3Key, inputPath);
+      console.log("Download complete");
 
-    console.log("Thumbnail generated at:", thumbnailPath);
+      // 3. Generate thumbnail + upload
+      const thumbPath = await generateThumbnail(inputPath, workDir);
 
-    // 3. FFmpeg: Transcode to HLS (.m3u8 + .ts)
-    const inputVideoPath = path.join("/tmp", `${videoId}.mp4`);
-    const hlsOutputDir = path.join("/tmp", `${videoId}-hls`);
+      const thumbnailKey = `thumbnails/${videoId}.jpg`;
 
-    const hlsPath = await convertToHLS(inputVideoPath, hlsOutputDir);
-    
-    console.log("HLS generated at:", hlsPath);
+      await uploadToS3(thumbPath, thumbnailKey, "image/jpeg");
+      console.log("Thumbnail uploaded");
 
-    // 4. Upload results back to S3
-    // 5. Update MongoDB status to 'COMPLETED'
+      // 4. Convert to HLS
+      await convertToHLS(inputPath, hlsOutputDir);
+      console.log("HLS conversion complete");
 
-    return { status: "success", videoId };
+      // 5. Upload HLS files (parallel)
+      const hlsFiles = await fs.promises.readdir(hlsOutputDir);
+
+      await Promise.all(
+        hlsFiles.map((file) => {
+          const filePath = path.join(hlsOutputDir, file);
+
+          const contentType = file.endsWith(".m3u8")
+            ? "application/vnd.apple.mpegurl"
+            : "video/mp2t";
+
+          return uploadToS3(
+            filePath,
+            `videos/${videoId}/${file}`,
+            contentType
+          );
+        })
+      );
+
+      console.log("HLS files uploaded");
+
+      // 6. TODO: Update MongoDB status to COMPLETED
+
+      return { status: "success", videoId };
+
+    } catch (error) {
+      console.error(`Job ${job.id} failed:`, error);
+      throw error;
+
+    } finally {
+      
+      // 7. Cleanup
+      await fs.promises.rm(workDir, { recursive: true, force: true });
+      console.log(`Cleaned up workspace for ${videoId}`);
+    }
   },
   {
     connection: redisConnection,
