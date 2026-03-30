@@ -3,6 +3,7 @@ import { redisConnection } from "../config/redis";
 import { downloadFromS3 } from "../services/s3.service";
 import { generateThumbnail, convertToHLS } from "../services/ffmpeg.service";
 import { uploadToS3 } from "../services/upload.service";
+import { updateVideoStatus } from "../services/api.service";
 import fs from "fs";
 import path from "path";
 
@@ -21,6 +22,11 @@ export const videoWorker = new Worker(
       // 1. Setup workspace
       await fs.promises.mkdir(hlsOutputDir, { recursive: true });
 
+      await updateVideoStatus(videoId, {
+        status: "PROCESSING",
+        processingProgress: 10,
+      });
+
       // 2. Download from S3
       await downloadFromS3(s3Key, inputPath);
       console.log("Download complete");
@@ -32,6 +38,12 @@ export const videoWorker = new Worker(
 
       await uploadToS3(thumbPath, thumbnailKey, "image/jpeg");
       console.log("Thumbnail uploaded");
+
+      await updateVideoStatus(videoId, {
+        status: "PROCESSING",
+        thumbnailKey,
+        processingProgress: 40,
+      });
 
       // 4. Convert to HLS
       await convertToHLS(inputPath, hlsOutputDir);
@@ -58,16 +70,31 @@ export const videoWorker = new Worker(
 
       console.log("HLS files uploaded");
 
-      // 6. TODO: Update MongoDB status to COMPLETED
+      // 6. Mark COMPLETED
+      await updateVideoStatus(videoId, {
+        status: "COMPLETED",
+        hlsUrl: `${process.env.S3_BASE_URL}/videos/${videoId}/index.m3u8`,
+        processingProgress: 100,
+      });
 
       return { status: "success", videoId };
 
     } catch (error) {
       console.error(`Job ${job.id} failed:`, error);
+
+      try {
+        await updateVideoStatus(videoId, {
+          status: "FAILED",
+          errorMessage:
+            error instanceof Error ? error.message : "Unknown error",
+        });
+      } catch (apiError) {
+        console.error("Failed to update FAILED status:", apiError);
+      }
+
       throw error;
 
     } finally {
-      
       // 7. Cleanup
       await fs.promises.rm(workDir, { recursive: true, force: true });
       console.log(`Cleaned up workspace for ${videoId}`);

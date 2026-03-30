@@ -72,9 +72,9 @@ export const convertToHLS = (
       .on("start", (cmd: string) =>
         console.log("FFmpeg command:", cmd)
       )
-      .on("progress", (p: { percent?: number }) =>
-        console.log(`Processing: ${p.percent?.toFixed(2)}%`)
-      )
+      // .on("progress", (p: { percent?: number }) =>
+      //   console.log(`Processing: ${p.percent?.toFixed(2)}%`)
+      // )
       .on("end", () => {
         console.log("HLS conversion done");
         resolve(`${outputDir}/index.m3u8`);
