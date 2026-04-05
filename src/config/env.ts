@@ -12,5 +12,5 @@ export const env = {
   S3_PROD_BUCKET: process.env.S3_PROD_BUCKET!,
   API_URL: process.env.API_URL!,
   WORKER_SECRET: process.env.WORKER_SECRET!,
-  
+  S3_PROD_BASE_URL: process.env.S3_PROD_BASE_URL!,
 };

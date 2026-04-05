@@ -73,7 +73,7 @@ export const videoWorker = new Worker(
       // 6. Mark COMPLETED
       await updateVideoStatus(videoId, {
         status: "COMPLETED",
-        hlsUrl: `${process.env.S3_BASE_URL}/videos/${videoId}/index.m3u8`,
+        hlsUrl: `${process.env.S3_PROD_BASE_URL}/videos/${videoId}/index.m3u8`,
         processingProgress: 100,
       });
 
